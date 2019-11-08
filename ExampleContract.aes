@@ -1,0 +1,83 @@
+payable contract Assetify =
+
+   record state = {
+      borrower: address,
+      lender: address,
+      assetify: address,
+      owner_count: int,
+      required: int,
+      borrower_approved: bool,
+      lender_approved: bool,
+      challenged: bool
+      }
+
+
+   entrypoint init(bor : address, len: address) : state = 
+      {    
+        assetify = Call.caller,
+        borrower = bor,
+        lender = len,
+        owner_count = 3,
+        required = 2,
+        lender_approved = false,
+        borrower_approved = false,
+        challenged = false
+        }
+   
+
+   stateful entrypoint lender_unlock_funds() =
+      if (Call.caller == state.lender)
+         put(state{lender_approved = true})
+      else 
+         abort("Authorizaton failed")
+   
+   stateful entrypoint lender_challenge() = 
+      if (Call.caller == state.lender)
+         put(state{lender_approved = true})
+         put(state{challenged = true})
+      else 
+         abort("Authorizaton failed")
+
+   stateful entrypoint borrower_challenge() = 
+      if (Call.caller == state.borrower)
+         put(state{borrower_approved = true})
+         put(state{challenged = true})
+      else 
+         abort("Authorizaton failed")
+
+
+   stateful entrypoint borrower_unlock_funds() =
+      if (Call.caller == state.borrower)
+         put(state{borrower_approved = true})
+      else 
+         abort("Authorizaton failed")
+   
+
+   payable stateful entrypoint withdraw(recepient: address) =
+      if (Call.caller == state.borrower) 
+         if (state.lender_approved == true) 
+            Chain.spend(recepient, Contract.balance)
+         else 
+            abort("lender has not approved")
+      else 
+         abort("Not authorized")
+   
+
+   payable stateful entrypoint liquidate(recepient: address) =
+      if (Call.caller == state.assetify) 
+         if (state.lender_approved == true && state.challenged == true) 
+            Chain.spend(recepient, Contract.balance)
+         else 
+            abort("Lender has not approved OR that conrtact has not been challenged")
+      else 
+         abort("Not authorized")
+
+
+   payable stateful entrypoint send_to_borrower() =
+      if (Call.caller == state.assetify) 
+         if (state.borrower_approved == true && state.challenged == true) 
+            Chain.spend(state.borrower, Contract.balance)
+         else 
+            abort("borrower has not approved OR that conrtact has not been challenged")
+      else 
+         abort("Not authorized")
